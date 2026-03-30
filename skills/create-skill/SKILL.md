@@ -1,6 +1,6 @@
 ---
 name: create-skill
-description: Create Claude Code skills through structured interview. Use when
+description: Create reusable agent skills through structured interview. Use when
   formalizing a workflow, building a capability, turning a conversation into a
   reusable skill, or asked to "make a skill". Use this even if the user just
   says "skill" or "slash command" or "automate this".
@@ -17,9 +17,9 @@ Build skills through interview, not scaffolding.
 - **Interview-driven**: Questions reveal requirements better than templates
 - **Capture, don't invent**: Check if the current conversation already contains a workflow worth capturing — extract steps, tools used, and corrections before asking fresh questions
 - **3 examples minimum**: Specificity before abstraction
-- **Explain the why**: Instructions that explain reasoning outperform rigid MUSTs. Claude is smart — give it context to make judgment calls, not just rules to follow
+- **Explain the why**: Instructions that explain reasoning outperform rigid MUSTs. The agent is smart — give it context to make judgment calls, not just rules to follow
 - **Progressive disclosure**: Keep SKILL.md lean, split heavy content to reference files
-- **Lean over rigid**: Remove instructions that aren't pulling their weight. If test runs show Claude ignoring a section, cut it rather than adding enforcement
+- **Lean over rigid**: Remove instructions that aren't pulling their weight. If test runs show the agent ignoring a section, cut it rather than adding enforcement
 
 ## Workflow
 
@@ -34,11 +34,15 @@ Understand the problem space:
 
 ```
 Q: What type of skill is this?
-  1. Workflow automation (multi-step process)
-  2. Code generation (templates, scaffolding)
-  3. Analysis/review (examine and report)
-  4. Integration (connect external tools)
+  1. Discipline (enforces a practice — TDD, review, verification)
+  2. Process (guides multi-step workflows — brainstorming, planning, deployment)
+  3. Technique (teaches patterns/recipes — code generation, analysis)
+  4. Reference (provides information — API docs, templates, specs)
+  5. Always-on (runs every session — runbooks, session state)
 ```
+
+The skill type determines which hardening techniques apply later in Phase 5.
+See [references/techniques.md](references/techniques.md) for the full matrix.
 
 Ask:
 - What does this skill do? (1 sentence)
@@ -70,7 +74,7 @@ Nail down specifics:
 
 ```
 Q: Does this skill need external tools?
-  1. No, just Claude Code built-ins
+  1. No, just built-in tools
   2. Yes, CLI tools (specify which)
   3. Yes, APIs (specify which)
   4. Not sure yet
@@ -107,7 +111,7 @@ Ask:
 - What if [likely failure] happens?
 - Should this persist state or be ephemeral?
 - What should NOT be in this skill?
-- Should Claude auto-invoke this, or manual-only? (side effects = manual-only)
+- Should the host agent auto-invoke this, or manual-only? (side effects = manual-only)
 
 ### Phase 5: Validate
 
@@ -121,20 +125,28 @@ Guide the user toward **realistic** test prompts — concrete, with file paths, 
 
 Anti-trigger prompts should be **near-misses**: queries that share keywords with the skill but actually need something different. Obvious irrelevance ("write a fibonacci function") doesn't test anything.
 
+**Hardening (based on skill type from Phase 1):**
+
+For discipline and process skills, also ask:
+- "What corners would an agent cut if it were in a rush?" → seeds the anti-rationalization table
+- "What does failure look like if the skill is ignored?" → defines what baseline testing should catch
+
+See [references/techniques.md](references/techniques.md) for the full hardening guide. Apply techniques matched to the skill type — discipline skills get the full stack (anti-rationalization, pressure testing, persuasion), technique/reference skills get light validation only.
+
 ### Generate
 
 Create SKILL.md from interview answers. Follow these rules:
 
-**Description writing** (most important field — Claude uses it alone to decide whether to load):
+**Description writing** (most important field — the host agent uses it alone to decide whether to load):
 - Write in third person ("Processes files..." not "I can help...")
 - Include trigger words matching how users naturally phrase requests
 - State WHAT it does AND WHEN to use it
-- Be deliberately "pushy" — Claude tends to under-trigger. Add phrases like "Use this whenever the user mentions X, even if they don't explicitly ask for it"
+- Be deliberately "pushy" — agents tend to under-trigger. Add phrases like "Use this whenever the user mentions X, even if they don't explicitly ask for it"
 - Under 200 characters, but prioritize trigger coverage over brevity
 
 **Instruction language**:
 - Use imperative commands, not questions ("Extract the data" not "Can you extract?")
-- **Explain the why** behind instructions rather than piling on rigid MUSTs. If Claude understands the reasoning, it handles edge cases better than if it's following rote rules
+- **Explain the why** behind instructions rather than piling on rigid MUSTs. If the agent understands the reasoning, it handles edge cases better than if it's following rote rules
 - Be concrete ("Use UTF-8 encoding") not abstract ("Use appropriate encoding")
 - Number workflow steps explicitly
 - Include 3-5 input/output examples for non-obvious behavior
@@ -192,11 +204,11 @@ Changed files: !`git diff --name-only`
 **Bundled files** — if Phase 3 identified supporting files or repeated helper logic:
 
 ```markdown
-See [reference.md](${CLAUDE_SKILL_DIR}/reference.md) for details.
-Run: ${CLAUDE_SKILL_DIR}/scripts/validate.sh
+See [reference.md](references/reference.md) for details.
+Run: ./scripts/validate.sh
 ```
 
-Bundle scripts when Claude would otherwise regenerate the same helper every invocation. Scripts execute without loading code into context — big token savings.
+Bundle scripts when the agent would otherwise regenerate the same helper every invocation. Scripts execute without loading code into context — big token savings.
 
 Target: under 300 lines in SKILL.md. Split to reference files early.
 
@@ -207,12 +219,19 @@ After writing the skill:
 1. **Review description against test prompts** — would the Phase 5 trigger prompts activate this skill based on the description alone? If not, the description needs more trigger words
 2. **Test immediately** — invoke the skill on the first test prompt
 3. **Verify anti-triggers** — confirm near-miss prompts don't activate it
-4. **Read the transcript** — did Claude follow the skill or drift? If it ignored a section, that section needs rewriting (explain the why) or cutting (it wasn't pulling its weight)
+4. **Read the transcript** — did the agent follow the skill or drift? If it ignored a section, that section needs rewriting (explain the why) or cutting (it wasn't pulling its weight)
 5. Optionally: `/magi "review this skill for clarity and completeness"`
+
+**For discipline/process skills (additional steps):**
+
+6. **Baseline test** — run the scenario without the skill loaded. Note every shortcut, skip, or rationalization. If the agent already does the right thing without the skill, the skill isn't needed
+7. **Populate anti-rationalization table** — from baseline observations, add each excuse and counter to the skill
+8. **Pressure test** — combine 3+ pressures (time + sunk cost + authority) in a test prompt. If the agent shortcuts under pressure, tighten the gates or add to the rationalization table
+9. **Define measurable criteria** — 3-6 binary pass/fail questions for the skill's output. This makes the skill autoresearch-ready for future optimization
 
 ## Output Location
 
-Write to: `~/.claude/skills/{skill-name}/SKILL.md`
+Write to the target skill directory's `SKILL.md` (for example `skills/{skill-name}/SKILL.md` or the host agent's skills folder).
 
 Only create reference files if content exceeds 300 lines or has distinct reference material.
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Skill"
+  short_description: "Interview and generate a reusable agent skill"
+  default_prompt: "Use $create-skill to interview me and turn this workflow into a reusable skill."
